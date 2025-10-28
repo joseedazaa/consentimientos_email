@@ -1,3 +1,4 @@
+// Mostrar el PDF y permitir firmar sobre él
 const PDF_URL = "/pdf";
 const pdfCanvas = document.getElementById("pdfCanvas");
 const sigCanvas = document.getElementById("sigCanvas");
@@ -11,7 +12,6 @@ async function renderPDF() {
   let totalHeight = 0;
   let maxWidth = 0;
 
-  // Calcular tamaño total
   const pages = [];
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -21,13 +21,11 @@ async function renderPDF() {
     maxWidth = Math.max(maxWidth, viewport.width);
   }
 
-  // Ajustar tamaño de los lienzos
   pdfCanvas.width = maxWidth;
   pdfCanvas.height = totalHeight;
   sigCanvas.width = maxWidth;
   sigCanvas.height = totalHeight;
 
-  // Dibujar cada página una debajo de otra
   let yOffset = 0;
   for (const { page, viewport } of pages) {
     await page.render({
@@ -38,8 +36,9 @@ async function renderPDF() {
     yOffset += viewport.height;
   }
 }
+renderPDF();
 
-// Eventos de dibujo de la firma
+// Eventos de dibujo
 sigCanvas.addEventListener("mousedown", e => {
   drawing = true;
   sigCtx.beginPath();
@@ -59,17 +58,18 @@ document.getElementById("clear").addEventListener("click", () => {
   sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
 });
 
+// Enviar con EmailJS
 document.getElementById("send").addEventListener("click", async () => {
-  const pdfDataUrl = pdfCanvas.toDataURL("image/png");
   const sigDataUrl = sigCanvas.toDataURL("image/png");
 
-  const blob = await fetch(sigDataUrl).then(res => res.blob());
-  const formData = new FormData();
-  formData.append("signature", blob, "firma.png");
-  formData.append("pdf", pdfDataUrl);
+  emailjs.init("2mCQ45S_dNLMex9Nr"); // Tu Public Key
 
-  await fetch("/submit", { method: "POST", body: formData });
-  alert("PDF firmado enviado correctamente.");
+  const templateParams = {
+    message: "Nuevo consentimiento firmado.",
+    signature: sigDataUrl
+  };
+
+  emailjs.send("service_rxgpa8f", "service_rxgpa8f", templateParams)
+    .then(() => alert("✅ Enviado correctamente a la asesoría."),
+          err => alert("❌ Error al enviar: " + JSON.stringify(err)));
 });
-
-renderPDF();

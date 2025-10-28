@@ -69,7 +69,8 @@ document.getElementById("send").addEventListener("click", async () => {
     signature: sigDataUrl
   };
 
-  emailjs.send("service_rxgpa8f", "service_rxgpa8f", templateParams)
+  emailjs.send("service_rxgpa8f", "template_pybkf58", templateParams)
     .then(() => alert("✅ Enviado correctamente a la asesoría."),
           err => alert("❌ Error al enviar: " + JSON.stringify(err)));
 });
+

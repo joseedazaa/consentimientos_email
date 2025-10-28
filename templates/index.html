@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Firmar contrato</title>
+<link rel="stylesheet" href="https://unpkg.com/pdfjs-dist@4.7.76/web/pdf_viewer.css" />
+<script src="https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.worker.min.js";</script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<style>
+  html,body{margin:0;background:#f3f3f3;font-family:Arial, sans-serif}
+  .wrap{max-width:950px;margin:16px auto;padding:16px;background:#fff;border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.06)}
+  .stage{position:relative;border:1px solid #ddd;border-radius:8px;overflow:hidden;background:#fafafa}
+  #pdfCanvas{display:block;width:100%;height:auto}
+  #sigCanvas{position:absolute;left:0;top:0}
+  .bar{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+  button{padding:10px 16px;border:0;border-radius:6px;background:#222;color:#fff;cursor:pointer}
+  button:hover{background:#000}
+  .hint{color:#666;font-size:13px;margin:8px 0 12px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hint">Firma directamente sobre el documento. Al pulsar “Enviar”, el PDF firmado se envía a la asesoría.</div>
+    <div class="stage">
+      <canvas id="pdfCanvas"></canvas>
+      <canvas id="sigCanvas"></canvas>
+    </div>
+    <div class="bar">
+      <button id="clear">Borrar firma</button>
+      <button id="send">Enviar</button>
+    </div>
+  </div>
+  <script src="/static/script.js"></script>
+</body>
+</html>

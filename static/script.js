@@ -42,7 +42,7 @@ async function renderPDF() {
   }
 }
 renderPDF();
-
+window.addEventListener("resize", renderPDF);
 // Firma dibujada sobre TODAS las páginas (overlay)
 let drawing = false;
 function pos(e){
@@ -135,4 +135,5 @@ document.getElementById("send").onclick = async () => {
     alert("Error al enviar: " + (js.error || "desconocido"));
   }
 };
+
 

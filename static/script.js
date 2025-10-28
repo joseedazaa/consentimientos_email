@@ -26,7 +26,7 @@ async function renderPDF() {
   pageHeights = viewports.map(v => v.height);
 
   pdfCanvas.width = width;
-  pdfCanvas.height = totalHeight;
+  pdfCanvas.height = Math.ceil(totalHeight);
   sigCanvas.width = width;
   sigCanvas.height = totalHeight;
 
@@ -135,3 +135,4 @@ document.getElementById("send").onclick = async () => {
     alert("Error al enviar: " + (js.error || "desconocido"));
   }
 };
+

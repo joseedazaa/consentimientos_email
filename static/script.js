@@ -3,137 +3,73 @@ const pdfCanvas = document.getElementById("pdfCanvas");
 const sigCanvas = document.getElementById("sigCanvas");
 const pdfCtx = pdfCanvas.getContext("2d");
 const sigCtx = sigCanvas.getContext("2d");
-let pdfDocRef;
-let viewports = [];
-let pageHeights = [];
-let totalHeight = 0;
-let scale = 1;
+let drawing = false;
 
 async function renderPDF() {
-  pdfDocRef = await pdfjsLib.getDocument(PDF_URL).promise;
+  const pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+  const scale = 1.4;
+  let totalHeight = 0;
+  let maxWidth = 0;
+
+  // Calcular tamaño total
   const pages = [];
-  for (let i = 1; i <= pdfDocRef.numPages; i++) pages.push(await pdfDocRef.getPage(i));
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const viewport = page.getViewport({ scale });
+    pages.push({ page, viewport });
+    totalHeight += viewport.height;
+    maxWidth = Math.max(maxWidth, viewport.width);
+  }
 
-  // Escala en base al ancho contenedor
-  const containerW = document.querySelector(".stage").clientWidth || 900;
-  const unscaled = await pages[0].getViewport({ scale: 1 });
-  scale = containerW / unscaled.width;
-
-  // Calcular tamaños y alturas totales
-  viewports = pages.map(p => p.getViewport({ scale }));
-  const width = Math.max(...viewports.map(v => v.width));
-  totalHeight = viewports.reduce((acc, v) => acc + v.height, 0);
-  pageHeights = viewports.map(v => v.height);
-
-  pdfCanvas.width = width;
-  pdfCanvas.height = Math.ceil(totalHeight);
-  sigCanvas.width = width;
+  // Ajustar tamaño de los lienzos
+  pdfCanvas.width = maxWidth;
+  pdfCanvas.height = totalHeight;
+  sigCanvas.width = maxWidth;
   sigCanvas.height = totalHeight;
 
-  // Render apilado: página 1 y debajo la 2
-  let yOff = 0;
-  for (let i = 0; i < pages.length; i++) {
-    await pages[i].render({
+  // Dibujar cada página una debajo de otra
+  let yOffset = 0;
+  for (const { page, viewport } of pages) {
+    await page.render({
       canvasContext: pdfCtx,
-      viewport: viewports[i],
-      transform: [1, 0, 0, 1, 0, yOff]
+      viewport,
+      transform: [1, 0, 0, 1, 0, yOffset]
     }).promise;
-    yOff += viewports[i].height;
+    yOffset += viewport.height;
   }
 }
-renderPDF();
-window.addEventListener("resize", renderPDF);
-// Firma dibujada sobre TODAS las páginas (overlay)
-let drawing = false;
-function pos(e){
-  const rect = sigCanvas.getBoundingClientRect();
-  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-  return { x: clientX - rect.left, y: clientY - rect.top };
-}
-function start(e){ drawing = true; const {x,y}=pos(e); sigCtx.beginPath(); sigCtx.moveTo(x,y); }
-function move(e){
-  if(!drawing) return;
-  e.preventDefault?.();
-  const {x,y}=pos(e);
+
+// Eventos de dibujo de la firma
+sigCanvas.addEventListener("mousedown", e => {
+  drawing = true;
+  sigCtx.beginPath();
+  sigCtx.moveTo(e.offsetX, e.offsetY);
+});
+sigCanvas.addEventListener("mousemove", e => {
+  if (!drawing) return;
+  sigCtx.lineTo(e.offsetX, e.offsetY);
+  sigCtx.strokeStyle = "black";
   sigCtx.lineWidth = 2;
-  sigCtx.lineCap = 'round';
-  sigCtx.strokeStyle = 'black';
-  sigCtx.lineTo(x,y);
   sigCtx.stroke();
-}
-function end(){ drawing=false; sigCtx.beginPath(); }
+});
+sigCanvas.addEventListener("mouseup", () => (drawing = false));
+sigCanvas.addEventListener("mouseleave", () => (drawing = false));
 
-["mousedown","touchstart"].forEach(ev => sigCanvas.addEventListener(ev, start, {passive:false}));
-["mousemove","touchmove"].forEach(ev => sigCanvas.addEventListener(ev, move, {passive:false}));
-["mouseup","mouseleave","touchend","touchcancel"].forEach(ev => sigCanvas.addEventListener(ev, end));
+document.getElementById("clear").addEventListener("click", () => {
+  sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+});
 
-// Borrar
-document.getElementById("clear").onclick = () => {
-  sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
-};
+document.getElementById("send").addEventListener("click", async () => {
+  const pdfDataUrl = pdfCanvas.toDataURL("image/png");
+  const sigDataUrl = sigCanvas.toDataURL("image/png");
 
-// Enviar: incrustar firma SOLO en la página 2 y mandar al servidor
-document.getElementById("send").onclick = async () => {
-  // 1) Cargar PDF original con pdf-lib
-  const originalBytes = await fetch(PDF_URL).then(r=>r.arrayBuffer());
-  const libDoc = await PDFLib.PDFDocument.load(originalBytes);
-  const pages = libDoc.getPages();
+  const blob = await fetch(sigDataUrl).then(res => res.blob());
+  const formData = new FormData();
+  formData.append("signature", blob, "firma.png");
+  formData.append("pdf", pdfDataUrl);
 
-  // 2) Recortar del lienzo de firma SOLO el área de la página 2 (asumiendo 2 páginas)
-  const page1HeightPx = pageHeights[0];             // altura renderizada de la página 1 en pixeles canvas
-  const page2HeightPx = pageHeights[1];             // altura renderizada de la página 2 en pixeles canvas
+  await fetch("/submit", { method: "POST", body: formData });
+  alert("PDF firmado enviado correctamente.");
+});
 
-  // Crear un canvas temporal con el tamaño EXACTO de la página 2
-  const crop = document.createElement("canvas");
-  crop.width = sigCanvas.width;
-  crop.height = page2HeightPx;
-  const cctx = crop.getContext("2d");
-
-  // Copiar del overlay la franja correspondiente a la página 2
-  // sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight
-  cctx.drawImage(
-    sigCanvas,
-    0, page1HeightPx,               // origen Y = empieza donde termina la página 1
-    sigCanvas.width, page2HeightPx, // ancho/alto de la página 2
-    0, 0,                           // destino
-    crop.width, crop.height
-  );
-
-  // 3) Convertir esa franja a PNG y embeberla a tamaño completo de la página 2
-  const dataUrl = crop.toDataURL("image/png");
-  const png = await libDoc.embedPng(dataUrl);
-
-  const page2 = pages[1]; // índice 1 = segunda página
-  const { width: pageW, height: pageH } = page2.getSize();
-
-  // Mapeo px(canvas) -> puntos(PDF)
-  const sx = pageW / crop.width;
-  const sy = pageH / crop.height;
-
-  page2.drawImage(png, {
-    x: 0,
-    y: 0,
-    width: crop.width * sx,
-    height: crop.height * sy
-  });
-
-  // 4) Obtener bytes y ENVIAR al servidor para email
-  const outBytes = await libDoc.save();
-
-  const res = await fetch("/submit", {
-    method: "POST",
-    headers: {"Content-Type":"application/pdf"},
-    body: outBytes
-  });
-
-  const js = await res.json();
-  if (js.ok) {
-    alert("Enviado a la asesoría correctamente.");
-    sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
-  } else {
-    alert("Error al enviar: " + (js.error || "desconocido"));
-  }
-};
-
-
+renderPDF();
